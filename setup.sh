@@ -30,7 +30,7 @@ fi
 # Git
 command -v git &> /dev/null || install_packages git
 
-# Docker with validation
+# Docker with group checks and validation
 if ! command -v docker &> /dev/null; then
     echo "Installing Docker..."
     install_packages ca-certificates curl gnupg
@@ -40,11 +40,18 @@ if ! command -v docker &> /dev/null; then
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
     sudo apt update
     install_packages docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    sudo usermod -aG docker "$USER"
 fi
+
+# Ensure docker group exists
+getent group docker &> /dev/null || sudo groupadd docker
+
+# Add user to docker group if not member
+getent group docker | grep -q "$USER" || sudo usermod -aG docker "$USER"
+
 # Test Docker access
 if ! docker version &> /dev/null; then
-    echo "Docker access failed. Relogin for group changes. Exiting."
+    echo "Docker access failed (likely session not refreshed). Relogin and rerun script. Exiting."
+    echo "Tip: After relogin, verify with 'groups | grep docker'."
     exit 1
 fi
 
@@ -75,7 +82,7 @@ command -v open-lens &> /dev/null || {
     install_packages desktop-file-utils
     ARCH=$(dpkg --print-architecture)
     LATEST_RELEASE=$(curl -s https://api.github.com/repos/MuhammedKalkan/OpenLens/releases/latest | grep "browser_download_url.*${ARCH}\.deb\"" | grep -v "sha256" | cut -d '"' -f 4 | head -n1)
-    [ -z "$LATEST_RELEASE" ] && { echo "Failed to fetch OpenLens URL."; exit 1; }
+    [ -z "$LATEST_RELEASE" ] && { echo "Failed to fetch OpenLens URL. Check connection/GitHub."; exit 1; }
     curl -L "$LATEST_RELEASE" -o openlens.deb
     sudo dpkg -i openlens.deb || true
     sudo apt --fix-broken install -y
@@ -108,8 +115,8 @@ REPO_DIR="$HOME/k3s-dev-env"
 
 # Dev container with diagnostics
 echo "Starting dev container..."
-[ -f ".devcontainer/Dockerfile" ] && [ -f ".devcontainer/devcontainer.json" ] || { echo "Missing .devcontainer files."; exit 1; }
-devcontainer up --workspace-folder . || { echo "Failed. Check docker logs or files."; exit 1; }
+[ -f ".devcontainer/Dockerfile" ] && [ -f ".devcontainer/devcontainer.json" ] || { echo "Missing .devcontainer files. Check repo."; exit 1; }
+devcontainer up --workspace-folder . || { echo "Failed. Run 'docker info' for diagnostics or check Dockerfile."; exit 1; }
 
 # Container ID and instructions
 CONTAINER_ID=$(docker ps -q --filter label=devcontainer.local_folder="$PWD" --latest)
@@ -119,6 +126,6 @@ CONTAINER_ID=$(docker ps -q --filter label=devcontainer.local_folder="$PWD" --la
     echo "Edit: nvim <file> (LazyVim + k8s)"
     echo "GUI: open-lens & (~/.kube/config)"
     echo "Test: tailscale status; kubectl get nodes"
-} || echo "No container. Run devcontainer up manually."
+} || echo "No container. Rerun devcontainer up after fixes."
 
 echo "Done! See setup.log for details."
