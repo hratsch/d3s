@@ -60,11 +60,15 @@ if ! command -v nvim &> /dev/null || [ "$(nvim --version | head -n1 | cut -d ' '
     install_packages neovim
 fi
 
-# Install OpenLens (with dependency fix)
+# Install OpenLens (with dependency fix and precise URL extraction)
 if ! command -v open-lens &> /dev/null; then
     echo "Installing OpenLens..."
     install_packages desktop-file-utils  # Fixes update-desktop-database
-    LATEST_RELEASE=$(curl -s https://api.github.com/repos/MuhammedKalkan/OpenLens/releases/latest | grep "browser_download_url.*deb" | cut -d '"' -f 4)
+    LATEST_RELEASE=$(curl -s https://api.github.com/repos/MuhammedKalkan/OpenLens/releases/latest | grep "browser_download_url.*amd64\.deb\"" | grep -v "sha256" | cut -d '"' -f 4 | head -n1)
+    if [ -z "$LATEST_RELEASE" ]; then
+        echo "Failed to fetch OpenLens URL. Check internet or repo."
+        exit 1
+    fi
     curl -L "$LATEST_RELEASE" -o openlens.deb
     sudo dpkg -i openlens.deb || true  # Ignore initial errors
     sudo apt --fix-broken install -y   # Resolve any broken deps
