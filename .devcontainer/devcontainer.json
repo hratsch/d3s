@@ -1,0 +1,18 @@
+{
+  "name": "k3s Dev Environment",
+  "dockerFile": "Dockerfile",
+  "runArgs": ["--cap-add=NET_ADMIN", "--device=/dev/net/tun:/dev/net/tun"],
+  "mounts": [
+    "source=tailscale-state,target=/var/lib/tailscale,type=volume",
+    "source=${localEnv:HOME}/.kube,target=/root/.kube,type=bind,consistency=cached"
+  ],
+  "containerEnv": {
+    "TS_AUTHKEY": "${localEnv:TS_AUTHKEY}"
+  },
+  "postCreateCommand": "tailscale up --authkey=$TS_AUTHKEY --reset --accept-routes || true",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-kubernetes-tools.vscode-kubernetes-tools"]
+    }
+  }
+}
